@@ -635,7 +635,7 @@ def evaluate(test_annotation_file: str, user_submission_file: str, phase_codenam
 
     print('')
     # eval_result['night'].params.imgIds = imgIds[1455:]
-    eval_result['day'].params.imgIds = [ii for ii, img in kaistGt.imgs.items() if get_time_of_day(img['im_name']) == 'night']
+    eval_result['night'].params.imgIds = [ii for ii, img in kaistGt.imgs.items() if get_time_of_day(img['im_name']) == 'night']
     eval_result['night'].evaluate(0)
     eval_result['night'].accumulate()
     MR_night = eval_result['night'].summarize(0, subsetStr='Night')
@@ -653,6 +653,14 @@ def evaluate(test_annotation_file: str, user_submission_file: str, phase_codenam
     # print(msg)
 
     # return metrics
+    # wandb.log({
+    #     'kaist/AP@0.50': metrics['AP_iou50'],
+    #     'kaist/AP@0.75': metrics['AP_iou75'],
+    #     'kaist/AP@0.50:0.95': metrics['AP_iou50:95'],
+    #     'kaist/MR@0.50_all': metrics['MR_-2_iou50_all'],
+    #     'kaist/MR@0.50_day': metrics['MR_-2_iou50_day'],
+    #     'kaist/MR@0.50_night': metrics['MR_-2_iou50_night'],
+    # })
     return eval_result
 
 
@@ -701,6 +709,7 @@ if __name__ == "__main__":
     parser.add_argument('--evalFig', type=str, default=None,
                         help='Please put the output path of the Miss rate versus false positive per-image (FPPI) curve')
     args = parser.parse_args()
+    # wandb.init(project="kaist-eval", name=os.path.basename(args.rstFiles[0]).replace(".json", ""))
 
     phase = "Multispectral"
     results = [evaluate(args.annFile, rstFile, phase) for rstFile in args.rstFiles]

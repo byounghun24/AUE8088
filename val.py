@@ -116,7 +116,49 @@ def process_batch(detections, labels, iouv):
                 matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
             correct[matches[:, 1].astype(int), i] = True
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
+# def process_batch(detections, labels, iouv):
+#     """
+#     Custom matching:
+#     - IoU-based matching for class_id != 2
+#     - Center-point-based matching for class_id == 2 (People)
+#     """
+#     correct = np.zeros((detections.shape[0], iouv.shape[0])).astype(bool)
 
+#     if labels.shape[0] == 0 or detections.shape[0] == 0:
+#         return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
+
+#     # Split people and non-people
+#     is_people_label = labels[:, 0] == 2
+#     is_people_pred = detections[:, 5] == 2
+
+#     # 1. IoU-based matching for non-people
+#     if (~is_people_label).any() and (~is_people_pred).any():
+#         iou = box_iou(labels[~is_people_label][:, 1:], detections[~is_people_pred][:, :4])
+#         correct_class = labels[~is_people_label][:, 0:1] == detections[~is_people_pred][:, 5]
+#         for i in range(len(iouv)):
+#             x = torch.where((iou >= iouv[i]) & correct_class)
+#             if x[0].shape[0]:
+#                 matches = torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1).cpu().numpy()
+#                 if x[0].shape[0] > 1:
+#                     matches = matches[matches[:, 2].argsort()[::-1]]
+#                     matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
+#                     matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
+#                 correct[~is_people_pred][matches[:, 1].astype(int), i] = True
+
+#     # 2. Center-point-based matching for people class
+#     if is_people_label.any() and is_people_pred.any():
+#         gt_boxes = labels[is_people_label][:, 1:5]  # x1, y1, x2, y2
+#         pred_boxes = detections[is_people_pred][:, :4]
+#         pred_centers = (pred_boxes[:, :2] + pred_boxes[:, 2:]) / 2  # center x,y
+
+#         for iou_idx in range(len(iouv)):
+#             for pi, pc in enumerate(pred_centers):
+#                 for gt in gt_boxes:
+#                     if gt[0] <= pc[0] <= gt[2] and gt[1] <= pc[1] <= gt[3]:  # center inside GT box
+#                         correct[is_people_pred][pi, iou_idx] = True
+#                         break  # one match is enough
+
+#     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
 
 @smart_inference_mode()
 def run(

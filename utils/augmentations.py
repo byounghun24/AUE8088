@@ -151,121 +151,310 @@ def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleF
     return im, ratio, (dw, dh)
 
 
-def random_perspective(
-    im, targets=(), segments=(), degrees=10, translate=0.1, scale=0.1, shear=10, perspective=0.0, border=(0, 0)
-):
-    # torchvision.transforms.RandomAffine(degrees=(-10, 10), translate=(0.1, 0.1), scale=(0.9, 1.1), shear=(-10, 10))
-    # targets = [cls, xyxy]
+# def random_perspective(
+#     im, targets=(), segments=(), degrees=10, translate=0.1, scale=0.1, shear=10, perspective=0.0, border=(0, 0)
+# ):
+#     # torchvision.transforms.RandomAffine(degrees=(-10, 10), translate=(0.1, 0.1), scale=(0.9, 1.1), shear=(-10, 10))
+#     # targets = [cls, xyxy]
 
-    height = im.shape[0] + border[0] * 2  # shape(h,w,c)
-    width = im.shape[1] + border[1] * 2
+#     height = im.shape[0] + border[0] * 2  # shape(h,w,c)
+#     width = im.shape[1] + border[1] * 2
+
+#     # Center
+#     C = np.eye(3)
+#     C[0, 2] = -im.shape[1] / 2  # x translation (pixels)
+#     C[1, 2] = -im.shape[0] / 2  # y translation (pixels)
+
+#     # Perspective
+#     P = np.eye(3)
+#     P[2, 0] = random.uniform(-perspective, perspective)  # x perspective (about y)
+#     P[2, 1] = random.uniform(-perspective, perspective)  # y perspective (about x)
+
+#     # Rotation and Scale
+#     R = np.eye(3)
+#     a = random.uniform(-degrees, degrees)
+#     # a += random.choice([-180, -90, 0, 90])  # add 90deg rotations to small rotations
+#     s = random.uniform(1 - scale, 1 + scale)
+#     # s = 2 ** random.uniform(-scale, scale)
+#     R[:2] = cv2.getRotationMatrix2D(angle=a, center=(0, 0), scale=s)
+
+#     # Shear
+#     S = np.eye(3)
+#     S[0, 1] = math.tan(random.uniform(-shear, shear) * math.pi / 180)  # x shear (deg)
+#     S[1, 0] = math.tan(random.uniform(-shear, shear) * math.pi / 180)  # y shear (deg)
+
+#     # Translation
+#     T = np.eye(3)
+#     T[0, 2] = random.uniform(0.5 - translate, 0.5 + translate) * width  # x translation (pixels)
+#     T[1, 2] = random.uniform(0.5 - translate, 0.5 + translate) * height  # y translation (pixels)
+
+#     # Combined rotation matrix
+#     M = T @ S @ R @ P @ C  # order of operations (right to left) is IMPORTANT
+#     if (border[0] != 0) or (border[1] != 0) or (M != np.eye(3)).any():  # image changed
+#         if perspective:
+#             im = cv2.warpPerspective(im, M, dsize=(width, height), borderValue=(114, 114, 114))
+#         else:  # affine
+#             im = cv2.warpAffine(im, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
+
+#     # Visualize
+#     # import matplotlib.pyplot as plt
+#     # ax = plt.subplots(1, 2, figsize=(12, 6))[1].ravel()
+#     # ax[0].imshow(im[:, :, ::-1])  # base
+#     # ax[1].imshow(im2[:, :, ::-1])  # warped
+
+#     # Transform label coordinates
+#     n = len(targets)
+#     if n:
+#         use_segments = any(x.any() for x in segments) and len(segments) == n
+#         new = np.zeros((n, 4))
+#         if use_segments:  # warp segments
+#             segments = resample_segments(segments)  # upsample
+#             for i, segment in enumerate(segments):
+#                 xy = np.ones((len(segment), 3))
+#                 xy[:, :2] = segment
+#                 xy = xy @ M.T  # transform
+#                 xy = xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]  # perspective rescale or affine
+
+#                 # clip
+#                 new[i] = segment2box(xy, width, height)
+
+#         else:  # warp boxes
+#             xy = np.ones((n * 4, 3))
+#             xy[:, :2] = targets[:, [1, 2, 3, 4, 1, 4, 3, 2]].reshape(n * 4, 2)  # x1y1, x2y2, x1y2, x2y1
+#             xy = xy @ M.T  # transform
+#             xy = (xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]).reshape(n, 8)  # perspective rescale or affine
+
+#             # create new boxes
+#             x = xy[:, [0, 2, 4, 6]]
+#             y = xy[:, [1, 3, 5, 7]]
+#             new = np.concatenate((x.min(1), y.min(1), x.max(1), y.max(1))).reshape(4, n).T
+
+#             # clip
+#             new[:, [0, 2]] = new[:, [0, 2]].clip(0, width)
+#             new[:, [1, 3]] = new[:, [1, 3]].clip(0, height)
+
+#         # filter candidates
+#         i = box_candidates(box1=targets[:, 1:5].T * s, box2=new.T, area_thr=0.01 if use_segments else 0.10)
+#         targets = targets[i]
+#         targets[:, 1:5] = new[i]
+
+#     return im, targets
+
+# def random_perspective(
+#     im, targets=(), segments=(), degrees=10, translate=0.1, scale=0.1, shear=10, perspective=0.0, border=(0, 0), M=None
+# ):
+#     height = im.shape[0] + border[0] * 2
+#     width = im.shape[1] + border[1] * 2
+
+#     if M is None:
+#         # Center
+#         C = np.eye(3)
+#         C[0, 2] = -im.shape[1] / 2
+#         C[1, 2] = -im.shape[0] / 2
+
+#         # Perspective
+#         P = np.eye(3)
+#         P[2, 0] = random.uniform(-perspective, perspective)
+#         P[2, 1] = random.uniform(-perspective, perspective)
+
+#         # Rotation and Scale
+#         R = np.eye(3)
+#         a = random.uniform(-degrees, degrees)
+#         s = random.uniform(1 - scale, 1 + scale)
+#         R[:2] = cv2.getRotationMatrix2D(angle=a, center=(0, 0), scale=s)
+
+#         # Shear
+#         S = np.eye(3)
+#         S[0, 1] = math.tan(random.uniform(-shear, shear) * math.pi / 180)
+#         S[1, 0] = math.tan(random.uniform(-shear, shear) * math.pi / 180)
+
+#         # Translation
+#         T = np.eye(3)
+#         T[0, 2] = random.uniform(0.5 - translate, 0.5 + translate) * width
+#         T[1, 2] = random.uniform(0.5 - translate, 0.5 + translate) * height
+
+#         # Final matrix
+#         M = T @ S @ R @ P @ C
+
+#     # Warp image
+#     if (border[0] != 0) or (border[1] != 0) or (M != np.eye(3)).any():
+#         if perspective:
+#             im = cv2.warpPerspective(im, M, dsize=(width, height), borderValue=(114, 114, 114))
+#         else:
+#             im = cv2.warpAffine(im, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
+
+#     # Transform targets
+#     n = len(targets)
+#     if n:
+#         use_segments = any(x.any() for x in segments) and len(segments) == n
+#         new = np.zeros((n, 4))
+#         if use_segments:
+#             segments = resample_segments(segments)
+#             for i, segment in enumerate(segments):
+#                 xy = np.ones((len(segment), 3))
+#                 xy[:, :2] = segment
+#                 xy = xy @ M.T
+#                 xy = xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]
+#                 new[i] = segment2box(xy, width, height)
+#         else:
+#             xy = np.ones((n * 4, 3))
+#             xy[:, :2] = targets[:, [1, 2, 3, 4, 1, 4, 3, 2]].reshape(n * 4, 2)
+#             xy = xy @ M.T
+#             xy = (xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]).reshape(n, 8)
+#             x = xy[:, [0, 2, 4, 6]]
+#             y = xy[:, [1, 3, 5, 7]]
+#             new = np.concatenate((x.min(1), y.min(1), x.max(1), y.max(1))).reshape(4, n).T
+#             new[:, [0, 2]] = new[:, [0, 2]].clip(0, width)
+#             new[:, [1, 3]] = new[:, [1, 3]].clip(0, height)
+
+#         i = box_candidates(box1=targets[:, 1:5].T * s, box2=new.T, area_thr=0.01 if use_segments else 0.10)
+#         targets = targets[i]
+#         targets[:, 1:5] = new[i]
+
+#     return im, targets, M  # <-- M 추가 반환
+
+def random_perspective(
+    im, targets=(), segments=(), degrees=10, translate=0.1, scale=0.1,
+    shear=10, perspective=0.0, border=(0, 0)
+):
+    """
+    Apply the same random perspective transform to one or more images (e.g., [RGB, LWIR]).
+    If im is a list of images, the same transformation is applied to all.
+    """
+    is_list = isinstance(im, list)
+    ims = im if is_list else [im]
+
+    height = ims[0].shape[0] + border[0] * 2
+    width = ims[0].shape[1] + border[1] * 2
 
     # Center
     C = np.eye(3)
-    C[0, 2] = -im.shape[1] / 2  # x translation (pixels)
-    C[1, 2] = -im.shape[0] / 2  # y translation (pixels)
+    C[0, 2] = -ims[0].shape[1] / 2
+    C[1, 2] = -ims[0].shape[0] / 2
 
     # Perspective
     P = np.eye(3)
-    P[2, 0] = random.uniform(-perspective, perspective)  # x perspective (about y)
-    P[2, 1] = random.uniform(-perspective, perspective)  # y perspective (about x)
+    P[2, 0] = random.uniform(-perspective, perspective)
+    P[2, 1] = random.uniform(-perspective, perspective)
 
     # Rotation and Scale
     R = np.eye(3)
     a = random.uniform(-degrees, degrees)
-    # a += random.choice([-180, -90, 0, 90])  # add 90deg rotations to small rotations
     s = random.uniform(1 - scale, 1 + scale)
-    # s = 2 ** random.uniform(-scale, scale)
     R[:2] = cv2.getRotationMatrix2D(angle=a, center=(0, 0), scale=s)
 
     # Shear
     S = np.eye(3)
-    S[0, 1] = math.tan(random.uniform(-shear, shear) * math.pi / 180)  # x shear (deg)
-    S[1, 0] = math.tan(random.uniform(-shear, shear) * math.pi / 180)  # y shear (deg)
+    S[0, 1] = math.tan(random.uniform(-shear, shear) * math.pi / 180)
+    S[1, 0] = math.tan(random.uniform(-shear, shear) * math.pi / 180)
 
     # Translation
     T = np.eye(3)
-    T[0, 2] = random.uniform(0.5 - translate, 0.5 + translate) * width  # x translation (pixels)
-    T[1, 2] = random.uniform(0.5 - translate, 0.5 + translate) * height  # y translation (pixels)
+    T[0, 2] = random.uniform(0.5 - translate, 0.5 + translate) * width
+    T[1, 2] = random.uniform(0.5 - translate, 0.5 + translate) * height
 
-    # Combined rotation matrix
-    M = T @ S @ R @ P @ C  # order of operations (right to left) is IMPORTANT
-    if (border[0] != 0) or (border[1] != 0) or (M != np.eye(3)).any():  # image changed
+    # Combined transform
+    M = T @ S @ R @ P @ C
+
+    # Apply transformation to all images
+    warped = []
+    for im_ in ims:
         if perspective:
-            im = cv2.warpPerspective(im, M, dsize=(width, height), borderValue=(114, 114, 114))
-        else:  # affine
-            im = cv2.warpAffine(im, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
-
-    # Visualize
-    # import matplotlib.pyplot as plt
-    # ax = plt.subplots(1, 2, figsize=(12, 6))[1].ravel()
-    # ax[0].imshow(im[:, :, ::-1])  # base
-    # ax[1].imshow(im2[:, :, ::-1])  # warped
+            warped_im = cv2.warpPerspective(im_, M, dsize=(width, height), borderValue=(114, 114, 114))
+        else:
+            warped_im = cv2.warpAffine(im_, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
+        warped.append(warped_im)
 
     # Transform label coordinates
     n = len(targets)
     if n:
         use_segments = any(x.any() for x in segments) and len(segments) == n
         new = np.zeros((n, 4))
-        if use_segments:  # warp segments
-            segments = resample_segments(segments)  # upsample
+        if use_segments:
+            segments = resample_segments(segments)
             for i, segment in enumerate(segments):
                 xy = np.ones((len(segment), 3))
                 xy[:, :2] = segment
-                xy = xy @ M.T  # transform
-                xy = xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]  # perspective rescale or affine
-
-                # clip
+                xy = xy @ M.T
+                xy = xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]
                 new[i] = segment2box(xy, width, height)
-
-        else:  # warp boxes
+        else:
             xy = np.ones((n * 4, 3))
-            xy[:, :2] = targets[:, [1, 2, 3, 4, 1, 4, 3, 2]].reshape(n * 4, 2)  # x1y1, x2y2, x1y2, x2y1
-            xy = xy @ M.T  # transform
-            xy = (xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]).reshape(n, 8)  # perspective rescale or affine
+            xy[:, :2] = targets[:, [1, 2, 3, 4, 1, 4, 3, 2]].reshape(n * 4, 2)
+            xy = xy @ M.T
+            xy = (xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]).reshape(n, 8)
 
-            # create new boxes
             x = xy[:, [0, 2, 4, 6]]
             y = xy[:, [1, 3, 5, 7]]
             new = np.concatenate((x.min(1), y.min(1), x.max(1), y.max(1))).reshape(4, n).T
 
-            # clip
             new[:, [0, 2]] = new[:, [0, 2]].clip(0, width)
             new[:, [1, 3]] = new[:, [1, 3]].clip(0, height)
 
-        # filter candidates
         i = box_candidates(box1=targets[:, 1:5].T * s, box2=new.T, area_thr=0.01 if use_segments else 0.10)
         targets = targets[i]
         targets[:, 1:5] = new[i]
 
-    return im, targets
+    return warped, targets
 
+# def copy_paste(im, labels, segments, p=0.5):
+#     """
+#     Applies Copy-Paste augmentation by flipping and merging segments and labels on an image.
+
+#     Details at https://arxiv.org/abs/2012.07177.
+#     """
+#     n = len(segments)
+#     if p and n:
+#         h, w, c = im.shape  # height, width, channels
+#         im_new = np.zeros(im.shape, np.uint8)
+#         for j in random.sample(range(n), k=round(p * n)):
+#             l, s = labels[j], segments[j]
+#             box = w - l[3], l[2], w - l[1], l[4]
+#             ioa = bbox_ioa(box, labels[:, 1:5])  # intersection over area
+#             if (ioa < 0.30).all():  # allow 30% obscuration of existing labels
+#                 labels = np.concatenate((labels, [[l[0], *box]]), 0)
+#                 segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))
+#                 cv2.drawContours(im_new, [segments[j].astype(np.int32)], -1, (1, 1, 1), cv2.FILLED)
+
+#         result = cv2.flip(im, 1)  # augment segments (flip left-right)
+#         i = cv2.flip(im_new, 1).astype(bool)
+#         im[i] = result[i]  # cv2.imwrite('debug.jpg', im)  # debug
+
+#     return im, labels, segments
 
 def copy_paste(im, labels, segments, p=0.5):
     """
-    Applies Copy-Paste augmentation by flipping and merging segments and labels on an image.
+    Applies Copy-Paste augmentation by flipping and merging segments and labels on image(s).
 
-    Details at https://arxiv.org/abs/2012.07177.
+    If `im` is a list of images, applies the same augmentation to all modalities.
     """
+    is_list = isinstance(im, list)
+    ims = im if is_list else [im]
     n = len(segments)
+
     if p and n:
-        h, w, c = im.shape  # height, width, channels
-        im_new = np.zeros(im.shape, np.uint8)
-        for j in random.sample(range(n), k=round(p * n)):
+        h, w, c = ims[0].shape  # assume all modalities have same shape
+        im_new = np.zeros_like(ims[0], dtype=np.uint8)
+
+        # Indices to augment (same across modalities)
+        indices = random.sample(range(n), k=round(p * n))
+
+        for j in indices:
             l, s = labels[j], segments[j]
-            box = w - l[3], l[2], w - l[1], l[4]
-            ioa = bbox_ioa(box, labels[:, 1:5])  # intersection over area
-            if (ioa < 0.30).all():  # allow 30% obscuration of existing labels
+            box = w - l[3], l[2], w - l[1], l[4]  # flip x coordinates
+            ioa = bbox_ioa(box, labels[:, 1:5])
+            if (ioa < 0.30).all():
                 labels = np.concatenate((labels, [[l[0], *box]]), 0)
-                segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))
+                segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))  # flip segment x
                 cv2.drawContours(im_new, [segments[j].astype(np.int32)], -1, (1, 1, 1), cv2.FILLED)
 
-        result = cv2.flip(im, 1)  # augment segments (flip left-right)
-        i = cv2.flip(im_new, 1).astype(bool)
-        im[i] = result[i]  # cv2.imwrite('debug.jpg', im)  # debug
+        flipped = [cv2.flip(m, 1) for m in ims]
+        mask = cv2.flip(im_new, 1).astype(bool)
 
-    return im, labels, segments
+        for i in range(len(ims)):
+            ims[i][mask] = flipped[i][mask]
 
+    return ims, labels, segments
 
 def cutout(im, labels, p=0.5):
     """
@@ -298,16 +487,34 @@ def cutout(im, labels, p=0.5):
     return labels
 
 
-def mixup(im, labels, im2, labels2):
-    """
-    Applies MixUp augmentation by blending images and labels.
+# def mixup(im, labels, im2, labels2):
+#     """
+#     Applies MixUp augmentation by blending images and labels.
 
-    See https://arxiv.org/pdf/1710.09412.pdf for details.
+#     See https://arxiv.org/pdf/1710.09412.pdf for details.
+#     """
+#     r = np.random.beta(32.0, 32.0)  # mixup ratio, alpha=beta=32.0
+#     im = (im * r + im2 * (1 - r)).astype(np.uint8)
+#     labels = np.concatenate((labels, labels2), 0)
+#     return im, labels
+def mixup(imgs1, labels1, imgs2, labels2):
     """
-    r = np.random.beta(32.0, 32.0)  # mixup ratio, alpha=beta=32.0
-    im = (im * r + im2 * (1 - r)).astype(np.uint8)
-    labels = np.concatenate((labels, labels2), 0)
-    return im, labels
+    Applies MixUp augmentation to multi-modal images and labels.
+
+    imgs1, imgs2: list of modality images, e.g., [rgb_img, lwir_img]
+    labels1, labels2: numpy arrays of shape (N, 6 or 7)
+    """
+    r = np.random.beta(32.0, 32.0)  # mixup ratio
+
+    assert len(imgs1) == len(imgs2), "Number of modalities must match"
+
+    mixed_imgs = []
+    for img1, img2 in zip(imgs1, imgs2):
+        mixed = (img1.astype(np.float32) * r + img2.astype(np.float32) * (1 - r)).astype(np.uint8)
+        mixed_imgs.append(mixed)
+
+    mixed_labels = np.concatenate((labels1, labels2), axis=0)
+    return mixed_imgs, mixed_labels
 
 
 def box_candidates(box1, box2, wh_thr=2, ar_thr=100, area_thr=0.1, eps=1e-16):
