@@ -555,7 +555,7 @@ class KAISTPedEval(COCOeval):
         ax.set_yticklabels(yticklabels)
         ax.grid(which='major', axis='both')
         ax.set_ylim(0.01, 1)
-        ax.set_xlim(2e-4, 50)
+        ax.set_xlim(2e-4, 1)
         ax.set_ylabel('miss rate')
         ax.set_xlabel('false positives per image')
 
@@ -702,11 +702,14 @@ def draw_all(eval_results, filename='figure.jpg'):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='eval models')
-    parser.add_argument('--annFile', type=str, default='evaluation_script/KAIST_annotation.json',
+    parser.add_argument('--annFile', type=str, default='/home/byounghun/workspace/AUE8088/utils/eval/KAIST_val-A_annotation.json',
                         help='Please put the path of the annotation file. Only support json format.')
-    parser.add_argument('--rstFiles', type=str, nargs='+', default=['evaluation_script/MLPD_result.json'],
+    parser.add_argument('--rstFiles', type=str, nargs='+', default=['runs/train/yolov5n-rgbt21/epochNone_predictions.json',
+                                                                    'runs/train/yolov5n-rgbt67/epochNone_predictions.json',
+                                                                    'runs/train/yolov5n-rgbt71/epochNone_predictions.json',
+                                                                    'runs/train/yolov5n-rgbt75/epochNone_predictions.json'],
                         help='Please put the path of the result file. Only support json, txt format.')
-    parser.add_argument('--evalFig', type=str, default=None,
+    parser.add_argument('--evalFig', type=str, default='/home/byounghun/workspace/AUE8088/miss_rate_plot.jpg',
                         help='Please put the output path of the Miss rate versus false positive per-image (FPPI) curve')
     args = parser.parse_args()
     # wandb.init(project="kaist-eval", name=os.path.basename(args.rstFiles[0]).replace(".json", ""))
@@ -716,5 +719,5 @@ if __name__ == "__main__":
 
     # Sort results by MR_all
     if args.evalFig is not None:
-        results = sorted(results, key=lambda x: x['all'].summarize(0), reverse=True)
+        # results = sorted(results, key=lambda x: x['all'].summarize(0), reverse=True)
         draw_all(results, filename=args.evalFig)
