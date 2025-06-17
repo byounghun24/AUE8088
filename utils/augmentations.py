@@ -27,21 +27,18 @@ class rgbt_Albumentations:
             import albumentations as A
             check_version(A.__version__, "1.0.3", hard=True)
 
-            # 공통 기하학 변환: RGB + LWIR 모두 동일하게 적용
             geo = [
-                A.HorizontalFlip(p=0.5),
-                A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=10, p=0.5),
+                # A.RandomResizedCrop(height=size, width=size, scale=(0.8, 1.0), ratio=(0.9, 1.11), p=0.2),
+                A.Blur(p=0.05),
+                A.MedianBlur(p=0.05),
+                A.RandomBrightnessContrast(p=0.2),
+                A.RandomGamma(p=0.1),
+                A.ImageCompression(quality_lower=75, p=0.1),
             ]
 
-            # 색상 변환: RGB에만 적용
             color = [
-                A.Blur(p=0.01),
-                A.MedianBlur(p=0.01),
-                A.ToGray(p=0.01),
-                A.CLAHE(p=0.01),
-                A.RandomBrightnessContrast(p=0.2),
-                A.RandomGamma(p=0.2),
-                A.ImageCompression(quality_lower=75, p=0.2),
+                A.ToGray(p=0.05),
+                A.CLAHE(p=0.1),
             ]
 
             # Compose with LWIR as additional image
@@ -322,9 +319,6 @@ def random_perspective(
 def rgbt_random_perspective(
     im0, im1, targets=(), segments=(), degrees=10, translate=0.1, scale=0.1, shear=10, perspective=0.0, border=(0, 0)
 ):
-    # torchvision.transforms.RandomAffine(degrees=(-10, 10), translate=(0.1, 0.1), scale=(0.9, 1.1), shear=(-10, 10))
-    # targets = [cls, xyxy]
-
     height = im0.shape[0] + border[0] * 2  # shape(h,w,c)
     width = im0.shape[1] + border[1] * 2
 
@@ -341,9 +335,7 @@ def rgbt_random_perspective(
     # Rotation and Scale
     R = np.eye(3)
     a = random.uniform(-degrees, degrees)
-    # a += random.choice([-180, -90, 0, 90])  # add 90deg rotations to small rotations
     s = random.uniform(1 - scale, 1 + scale)
-    # s = 2 ** random.uniform(-scale, scale)
     R[:2] = cv2.getRotationMatrix2D(angle=a, center=(0, 0), scale=s)
 
     # Shear
@@ -357,20 +349,14 @@ def rgbt_random_perspective(
     T[1, 2] = random.uniform(0.5 - translate, 0.5 + translate) * height  # y translation (pixels)
 
     # Combined rotation matrix
-    M = T @ S @ R @ P @ C  # order of operations (right to left) is IMPORTANT
-    if (border[0] != 0) or (border[1] != 0) or (M != np.eye(3)).any():  # image changed
+    M = T @ S @ R @ P @ C  
+    if (border[0] != 0) or (border[1] != 0) or (M != np.eye(3)).any(): 
         if perspective:
             im0 = cv2.warpPerspective(im0, M, dsize=(width, height), borderValue=(114, 114, 114))
             im1 = cv2.warpPerspective(im1, M, dsize=(width, height), borderValue=(114, 114, 114))
         else:  # affine
             im0 = cv2.warpAffine(im0, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
             im1 = cv2.warpAffine(im1, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
-
-    # Visualize
-    # import matplotlib.pyplot as plt
-    # ax = plt.subplots(1, 2, figsize=(12, 6))[1].ravel()
-    # ax[0].imshow(im[:, :, ::-1])  # base
-    # ax[1].imshow(im2[:, :, ::-1])  # warped
 
     # Transform label coordinates
     n = len(targets)

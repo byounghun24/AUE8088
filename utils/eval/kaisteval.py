@@ -704,10 +704,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='eval models')
     parser.add_argument('--annFile', type=str, default='/home/byounghun/workspace/AUE8088/utils/eval/KAIST_val-A_annotation.json',
                         help='Please put the path of the annotation file. Only support json format.')
-    parser.add_argument('--rstFiles', type=str, nargs='+', default=['runs/train/yolov5n-rgbt21/epochNone_predictions.json',
-                                                                    'runs/train/yolov5n-rgbt67/epochNone_predictions.json',
-                                                                    'runs/train/yolov5n-rgbt71/epochNone_predictions.json',
-                                                                    'runs/train/yolov5n-rgbt75/epochNone_predictions.json'],
+    parser.add_argument('--rstFiles', type=str, nargs='+', default=['runs/train/yolov5n-rgbt-baseline/baseline_predictions.json',
+                                                                    'runs/train/yolov5n-rgbt-m44/mosaic4_predictions.json',
+                                                                    'runs/train/yolov5n-rgbt-m9/mosaic9_predictions.json',
+                                                                    'runs/train/yolov5n-rgbt-m49/mosaic49_predictions.json'],
                         help='Please put the path of the result file. Only support json, txt format.')
     parser.add_argument('--evalFig', type=str, default='/home/byounghun/workspace/AUE8088/miss_rate_plot.jpg',
                         help='Please put the output path of the Miss rate versus false positive per-image (FPPI) curve')
